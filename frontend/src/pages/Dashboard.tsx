@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { StatusBar } from '../components/StatusBar';
 import { Sidebar } from '../components/Sidebar';
 import { HeatMap } from '../components/HeatMap';
+import { HeroMetrics } from '../components/HeroMetrics';
 import { TemperatureLegend } from '../components/TemperatureLegend';
 import { ZoneDetailPanel } from '../components/ZoneDetailPanel';
 import { AIResponsePanel } from '../components/AIResponsePanel';
@@ -9,13 +11,14 @@ import { HeatWatchPanel } from '../components/HeatWatchPanel';
 import { useAnalysis } from '../hooks/useAnalysis';
 import { useAgent } from '../hooks/useAgent';
 import { useReassessment } from '../hooks/useReassessment';
+import { useSystemStatus } from '../hooks/useSystemStatus';
 import type { PriorityZone } from '../types';
 
 const DEFAULT_CITY = 'Phoenix, AZ';
 const DEFAULT_DATE = '2025-08-01';
 
 export function Dashboard() {
-  const { result, loading, error, run } = useAnalysis();
+  const { result, loading, error, run, reset: analysisReset } = useAnalysis();
   const { response: agentResponse, status: agentStatus, ask: agentAsk, reset: agentReset } = useAgent();
   const {
     response: reassessResponse,
@@ -25,16 +28,24 @@ export function Dashboard() {
     reset: reassessReset,
   } = useReassessment();
 
+  // Observed backend state — fetched once here, shared with the header and the
+  // system-status panel so there is a single /api/system/status request. §22/§23
+  const { status, loading: statusLoading, error: statusError } = useSystemStatus();
+
   const [selectedZone, setSelectedZone] = useState<PriorityZone | null>(null);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showHeatWatch, setShowHeatWatch] = useState(false);
   const [aiTargetZone, setAiTargetZone] = useState<PriorityZone | null>(null);
+
+  const analysis = result?.result ?? null;
 
   // Derive demo mode from last result — if no result yet, backend decides
   const demoMode = result?.data_mode === 'DEMO';
 
   // Next-reassessment cadence surfaced by the last agent decision (default 60)
   const reassessInterval = agentResponse?.decision.reassessment.interval_minutes ?? 60;
+
+  const agentBusy = agentStatus === 'loading';
 
   const handleAnalyzeCity = useCallback(async () => {
     setSelectedZone(null);
@@ -54,7 +65,7 @@ export function Dashboard() {
 
   // Open AI panel and immediately trigger agent
   const handleAskCivicheat = useCallback(async (message?: string) => {
-    setAiTargetZone(result?.result.priority_zones[0] ?? null);
+    setAiTargetZone(analysis?.priority_zones[0] ?? null);
     setShowHeatWatch(false);
     setShowAIPanel(true);
     await agentAsk(
@@ -63,7 +74,7 @@ export function Dashboard() {
       DEFAULT_DATE,
       demoMode,
     );
-  }, [result, agentAsk, demoMode]);
+  }, [analysis, agentAsk, demoMode]);
 
   const handleZoneAskAI = useCallback(async (zone: PriorityZone) => {
     setAiTargetZone(zone);
@@ -105,19 +116,36 @@ export function Dashboard() {
     reassessReset();
   }, [reassessReset]);
 
+  // §21 — clear the whole frontend view. Backend snapshots are left intact.
+  const canReset =
+    !!analysis || !!selectedZone || showAIPanel || showHeatWatch || !!agentResponse || !!reassessResponse;
+
+  const handleReset = useCallback(() => {
+    setSelectedZone(null);
+    setShowAIPanel(false);
+    setShowHeatWatch(false);
+    setAiTargetZone(null);
+    agentReset();
+    reassessReset();
+    analysisReset();
+  }, [agentReset, reassessReset, analysisReset]);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gov-900">
       {/* Top bar */}
       <StatusBar
+        status={status}
+        statusLoading={statusLoading}
+        statusError={statusError}
         dataMode={result?.data_mode ?? null}
-        city={result?.result?.city}
-        date={result?.result?.date}
+        city={analysis?.city}
+        date={analysis?.date}
       />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
-          result={result?.result ?? null}
+          result={analysis}
           loading={loading}
           selectedZoneId={selectedZone?.zone_id ?? null}
           onSelectZone={handleZoneSelect}
@@ -126,49 +154,70 @@ export function Dashboard() {
           onOptimizeResources={() => { /* Phase 7 */ }}
           onGenerateResponsePlan={() => { void handleGenerateResponsePlan(); }}
           onReassess={handleReassess}
+          onReset={handleReset}
+          canReset={canReset}
+          status={status}
+          statusLoading={statusLoading}
+          statusError={statusError}
         />
 
         {/* Main map */}
         <main className="flex-1 flex flex-col relative overflow-hidden">
-          <div className="px-4 pt-3 pb-1 flex-shrink-0 flex items-center justify-between">
-            <div>
+          <div className="px-4 pt-3 pb-1 flex-shrink-0 flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <h1 className="text-sm font-bold text-white tracking-widest uppercase">
                 Command Center
               </h1>
               <p className="text-xs text-gray-600">
                 {loading
                   ? 'Analyzing temperature intelligence…'
-                  : result
-                  ? `${result.result?.total_high_extreme_features ?? 0} high/extreme tiles · ${result.result?.priority_zones?.length ?? 0} priority zones`
+                  : analysis
+                  ? `${analysis.total_high_extreme_features ?? 0} high/extreme tiles · ${analysis.priority_zones?.length ?? 0} priority zones`
                   : 'Click Analyze City to load FortyGuard heat intelligence'}
               </p>
             </div>
-            {error && (
-              <div className="bg-red-900/40 border border-red-700 rounded px-3 py-1.5">
-                <p className="text-xs text-red-300">⚠ {error}</p>
-              </div>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {error && (
+                <div className="bg-red-900/40 border border-red-700 rounded px-3 py-1.5 flex items-center gap-1.5">
+                  <AlertTriangle size={12} className="text-red-400" aria-hidden="true" />
+                  <p className="text-xs text-red-300">{error}</p>
+                </div>
+              )}
+              {canReset && (
+                <button
+                  onClick={handleReset}
+                  disabled={loading}
+                  className="btn-secondary text-xs flex items-center gap-1.5 py-1.5 disabled:opacity-40"
+                  aria-label="Reset analysis view"
+                  title="Clear the current analysis view. Backend data is not deleted."
+                >
+                  <RotateCcw size={12} aria-hidden="true" />
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Hero metrics — only once real values exist. §4 / §5 */}
+          {analysis && (
+            <div className="px-4 pb-1 flex-shrink-0">
+              <HeroMetrics result={analysis} tileCount={result?.tile_count} />
+            </div>
+          )}
 
           <div className="flex-1 relative mx-4 mb-4 mt-1 rounded-lg overflow-hidden border border-gov-600">
             <HeatMap
-              analysisResult={result?.result ?? null}
+              analysisResult={analysis}
+              tileGeojson={result?.tile_geojson ?? null}
+              selectedZoneId={selectedZone?.zone_id ?? null}
+              loading={loading}
+              error={error}
               onZoneClick={handleZoneSelect}
             />
 
             <div className="absolute bottom-4 left-4 z-10">
-              <TemperatureLegend />
+              <TemperatureLegend result={analysis} />
             </div>
-
-            {loading && (
-              <div className="absolute inset-0 bg-gov-900/70 flex items-center justify-center z-20">
-                <div className="text-center">
-                  <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-blue-300 font-mono">Analyzing temperature intelligence…</p>
-                  <p className="text-xs text-gray-500 mt-1">FortyGuard → Risk Engine → Priority Zones</p>
-                </div>
-              </div>
-            )}
           </div>
         </main>
 
@@ -180,14 +229,16 @@ export function Dashboard() {
                 zone={selectedZone}
                 onClose={() => setSelectedZone(null)}
                 onAskAI={(zone) => { void handleZoneAskAI(zone); }}
+                askDisabled={agentBusy}
               />
             )}
             {showAIPanel && (
               <AIResponsePanel
-                result={result?.result ?? null}
+                result={analysis}
                 targetZone={aiTargetZone}
                 agentResponse={agentResponse}
                 agentStatus={agentStatus}
+                nemotronModel={status?.nemotron_model}
                 onClose={handleCloseAIPanel}
                 onAsk={(msg) => { void handleAskCivicheat(msg); }}
                 onReassess={() => { void handleReassess(); }}

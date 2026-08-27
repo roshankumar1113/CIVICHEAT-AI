@@ -1,7 +1,9 @@
-import { MapPin, Zap, Settings, Activity, RefreshCw } from 'lucide-react';
-import type { PriorityAnalysisResult } from '../types';
+import { MapPin, Zap, Settings, Activity, RefreshCw, RotateCcw } from 'lucide-react';
+import type { PriorityAnalysisResult, SystemStatus } from '../types';
 import { HeatStatusPanel } from './HeatStatusPanel';
 import { PriorityZoneList } from './PriorityZoneList';
+import { SystemStatusPanel } from './SystemStatusPanel';
+import { DataLimitations } from './DataLimitations';
 import type { PriorityZone } from '../types';
 
 interface SidebarProps {
@@ -14,6 +16,13 @@ interface SidebarProps {
   onOptimizeResources: () => void;
   onGenerateResponsePlan: () => void;
   onReassess: () => void;
+  /** §21 — clears the frontend analysis view without touching backend data. */
+  onReset: () => void;
+  canReset: boolean;
+  // §22 — observed backend state, fetched once at the page level.
+  status: SystemStatus | null;
+  statusLoading: boolean;
+  statusError: string | null;
 }
 
 export function Sidebar({
@@ -26,6 +35,11 @@ export function Sidebar({
   onOptimizeResources,
   onGenerateResponsePlan,
   onReassess,
+  onReset,
+  canReset,
+  status,
+  statusLoading,
+  statusError,
 }: SidebarProps) {
   return (
     <aside className="w-72 bg-gov-800 border-r border-gov-600 flex flex-col overflow-y-auto flex-shrink-0">
@@ -44,7 +58,7 @@ export function Sidebar({
               disabled={loading}
               className="btn-secondary flex items-center gap-2 text-sm justify-start"
             >
-              <MapPin size={13} />
+              <MapPin size={13} aria-hidden="true" />
               Analyze City
             </button>
             <button
@@ -52,7 +66,7 @@ export function Sidebar({
               disabled={loading || !result}
               className="btn-primary flex items-center gap-2 text-sm justify-start"
             >
-              <Zap size={13} />
+              <Zap size={13} aria-hidden="true" />
               Ask CIVICHEAT
             </button>
             <button
@@ -61,7 +75,7 @@ export function Sidebar({
               title="Available in Phase 7"
               className="btn-secondary flex items-center gap-2 text-sm justify-start opacity-50 cursor-not-allowed"
             >
-              <Settings size={13} />
+              <Settings size={13} aria-hidden="true" />
               Optimize Resources
               <span className="text-xs text-gray-600 ml-auto">Phase 7</span>
             </button>
@@ -70,7 +84,7 @@ export function Sidebar({
               disabled={loading || !result}
               className="btn-secondary flex items-center gap-2 text-sm justify-start"
             >
-              <Activity size={13} />
+              <Activity size={13} aria-hidden="true" />
               Generate Response Plan
             </button>
             <button
@@ -78,8 +92,17 @@ export function Sidebar({
               disabled={loading}
               className="btn-secondary flex items-center gap-2 text-sm justify-start"
             >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
               Reassess
+            </button>
+            <button
+              onClick={onReset}
+              disabled={loading || !canReset}
+              title="Clear the current analysis, selected zone, AI response and reassessment. Backend data is not deleted."
+              className="btn-secondary flex items-center gap-2 text-sm justify-start disabled:opacity-40"
+            >
+              <RotateCcw size={13} aria-hidden="true" />
+              Reset Analysis
             </button>
           </div>
         </div>
@@ -92,6 +115,12 @@ export function Sidebar({
             onSelect={onSelectZone}
           />
         )}
+
+        {/* System status + limitations */}
+        <div className="space-y-2">
+          <SystemStatusPanel status={status} loading={statusLoading} error={statusError} />
+          <DataLimitations />
+        </div>
 
         {/* Footer */}
         <div className="mt-auto pt-2">

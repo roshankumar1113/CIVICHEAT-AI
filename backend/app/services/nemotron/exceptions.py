@@ -6,8 +6,16 @@ class NemotronUnavailableError(Exception):
     """Raised when Nemotron endpoint is unreachable or not configured."""
 
 
-class NemotronAuthError(Exception):
-    """Raised on 401/403 from Nemotron."""
+class NemotronAuthError(NemotronUnavailableError):
+    """
+    Raised on 401/403 from Nemotron.
+
+    Subclasses NemotronUnavailableError so that an expired, revoked, or
+    credit-exhausted API key degrades into the deterministic fallback
+    (like any other unavailability) instead of surfacing as HTTP 500.
+    Handlers that need to distinguish auth failures must catch this
+    before NemotronUnavailableError.
+    """
 
 
 class NemotronTimeoutError(Exception):
