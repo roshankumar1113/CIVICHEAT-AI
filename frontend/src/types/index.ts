@@ -5,6 +5,30 @@ export type DataMode = 'DEMO' | 'LIVE';
 
 // ─── Backend API types ───────────────────────────────────────────────────────
 
+/**
+ * Observed state of an upstream integration, as reported by
+ * GET /api/system/status. `configured` means credentials exist; `state` means
+ * what the backend has actually seen happen. The UI must key CONNECTED off
+ * `state`, never off `configured`.
+ */
+export type IntegrationStateName =
+  | 'NOT_CONFIGURED'
+  | 'UNVERIFIED'
+  | 'CONNECTED'
+  | 'DEGRADED'
+  | 'AUTH_ERROR'
+  | 'TIMEOUT'
+  | 'UNAVAILABLE';
+
+export interface IntegrationStatus {
+  configured: boolean;
+  state: IntegrationStateName;
+  detail: string | null;
+  checked_at: string | null;
+  success_count: number;
+  failure_count: number;
+}
+
 export interface SystemStatus {
   app_name: string;
   version: string;
@@ -13,6 +37,10 @@ export interface SystemStatus {
   nemotron_configured: boolean;
   demo_mode: boolean;
   tracks: string[];
+  /** Model identifier the backend will actually call. Empty when unconfigured. */
+  nemotron_model?: string;
+  fortyguard?: IntegrationStatus | null;
+  nemotron?: IntegrationStatus | null;
 }
 
 export interface HealthResponse {
@@ -22,6 +50,19 @@ export interface HealthResponse {
 }
 
 // ─── FortyGuard / Heat Intelligence ──────────────────────────────────────────
+
+/** A FortyGuard temperature tile as delivered in the GeoJSON FeatureCollection. */
+export interface TileFeature {
+  id?: string;
+  type: 'Feature';
+  properties: Record<string, unknown>;
+  geometry: Record<string, unknown>;
+}
+
+export interface TileFeatureCollection {
+  type: 'FeatureCollection';
+  features: TileFeature[];
+}
 
 export interface HeatIntelligence {
   activity_id: string;
@@ -114,6 +155,13 @@ export interface AnalyzeResponse {
   data_mode: DataMode;
   message: string;
   result: PriorityAnalysisResult;
+  /**
+   * Raw FortyGuard tile FeatureCollection used by the map's temperature layer.
+   * Supplied separately from `result.agent_context` so the per-tile feature set
+   * is never handed to the Nemotron agent.
+   */
+  tile_geojson?: TileFeatureCollection | null;
+  tile_count?: number;
 }
 
 export interface HeatmapResponse {

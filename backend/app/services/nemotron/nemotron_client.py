@@ -22,6 +22,7 @@ from app.services.nemotron.exceptions import (
     NemotronTimeoutError,
     NemotronUnavailableError,
 )
+from app.services.integration_state import get_integration_state
 from app.services.nemotron.nemotron_models import ChatResponse
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,11 @@ class NemotronClient:
 
     def is_configured(self) -> bool:
         return bool(self._base_url and self._api_key)
+
+    @property
+    def model(self) -> str:
+        """The model identifier this client will actually call (from NEMOTRON_MODEL)."""
+        return self._model
 
     def _make_http_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(
@@ -180,8 +186,12 @@ class NemotronClient:
         try:
             response = await self._client().post(url, json=payload)
         except httpx.TimeoutException as exc:
+            get_integration_state().nemotron.record_timeout(
+                f"Inference exceeded {self._timeout}s."
+            )
             raise NemotronTimeoutError(f"Nemotron inference timed out after {self._timeout}s") from exc
         except httpx.RequestError as exc:
+            get_integration_state().nemotron.record_unavailable(str(exc))
             raise NemotronUnavailableError(f"Cannot reach Nemotron: {exc}") from exc
 
         self._raise_for_status(response)
@@ -190,15 +200,20 @@ class NemotronClient:
             data = response.json()
             parsed = ChatResponse.model_validate(data)
         except Exception as exc:
+            get_integration_state().nemotron.record_degraded(
+                "Model responded but the payload did not match the expected schema."
+            )
             raise NemotronMalformedResponseError(
                 f"Could not parse Nemotron response: {exc}\nRaw: {response.text[:500]}"
             ) from exc
 
+        total_tokens = parsed.usage.total_tokens if parsed.usage else -1
         logger.info(
             "Nemotron: response | finish=%s | tokens=%d",
             parsed.choices[0].finish_reason if parsed.choices else "?",
-            parsed.usage.total_tokens,
+            total_tokens,
         )
+        get_integration_state().nemotron.record_success(f"Model {self._model} responded.")
         return parsed
 
     @staticmethod
@@ -206,9 +221,15 @@ class NemotronClient:
         if response.status_code < 400:
             return
         if response.status_code in (401, 403):
+            get_integration_state().nemotron.record_auth_error(
+                f"Credentials rejected (HTTP {response.status_code})."
+            )
             raise NemotronAuthError(f"Nemotron authentication failed: HTTP {response.status_code}")
         try:
             detail = response.json().get("detail") or response.json().get("message") or response.text[:300]
         except Exception:
             detail = response.text[:300]
+        get_integration_state().nemotron.record_unavailable(
+            f"HTTP {response.status_code}: {detail}"
+        )
         raise NemotronUnavailableError(f"Nemotron API error {response.status_code}: {detail}")

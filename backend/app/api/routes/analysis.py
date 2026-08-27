@@ -29,6 +29,11 @@ class AnalyzeResponse(BaseModel):
     data_mode: str
     message: str
     result: PriorityAnalysisResult
+    # Raw FortyGuard tile FeatureCollection for the map's temperature layer.
+    # Deliberately kept OUT of result.agent_context so the Nemotron agent is
+    # never handed the full per-tile feature set.
+    tile_geojson: dict | None = None
+    tile_count: int = 0
 
 
 @router.post(
@@ -85,6 +90,8 @@ async def full_analysis(request: AnalyzeRequest) -> AnalyzeResponse:
             data_mode=priority_result.data_mode,
             message=message,
             result=priority_result,
+            tile_geojson=intelligence.geojson,
+            tile_count=intelligence.tile_count,
         )
 
     except FortyGuardTimeoutError as exc:

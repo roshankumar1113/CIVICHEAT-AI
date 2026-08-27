@@ -23,6 +23,7 @@ from app.services.fortyguard.fortyguard_parser import (
     build_demo_intelligence,
     parse_heat_intelligence,
 )
+from app.services.integration_state import get_integration_state
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +79,18 @@ class FortyGuardService:
         try:
             async with FortyGuardClient() as client:
                 status_response = await client.get_heat_intelligence(request)
-            return parse_heat_intelligence(status_response, city=city, date=date)
+            intelligence = parse_heat_intelligence(status_response, city=city, date=date)
+            get_integration_state().fortyguard.record_success(
+                f"Retrieved {intelligence.tile_count} temperature tiles for {city}."
+            )
+            return intelligence
 
         except (FortyGuardAPIError, FortyGuardTimeoutError) as exc:
             logger.error("FortyGuard: live request failed | error=%s", exc)
+            if isinstance(exc, FortyGuardTimeoutError):
+                get_integration_state().fortyguard.record_timeout(str(exc))
+            else:
+                get_integration_state().fortyguard.record_unavailable(str(exc))
             if use_demo_fallback:
                 logger.warning("FortyGuard: falling back to DEMO intelligence")
                 demo = build_demo_intelligence(city=city, date=date)

@@ -260,7 +260,7 @@ export function HeatWatchPanel({
           </span>
         </div>
 
-        {/* Status line */}
+        {/* Status line — exact CIVICHEAT reassessment verdict. §13 */}
         <div
           className={`rounded px-2 py-1.5 text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-1.5 ${
             meaningful
@@ -268,10 +268,31 @@ export function HeatWatchPanel({
               : 'bg-blue-900/30 text-blue-300 border border-blue-800'
           }`}
         >
-          {meaningful ? <AlertTriangle size={12} /> : <CheckCircle size={12} />}
-          {meaningful ? 'Response Update Recommended' : 'No Significant Change'}
+          {meaningful ? <AlertTriangle size={12} aria-hidden="true" /> : <CheckCircle size={12} aria-hidden="true" />}
+          {meaningful ? 'Significant Change Detected' : 'No Significant Change'}
         </div>
       </div>
+
+      {/* Nemotron intentionally skipped — the conditional-invocation story. §13 */}
+      {!meaningful && (
+        <div className="bg-gov-900/50 rounded-lg border border-gov-600 p-3 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1">
+              <Zap size={12} aria-hidden="true" /> Nemotron
+            </span>
+            <span className="text-xs bg-gov-700 text-gray-300 border border-gov-500 px-2 py-0.5 rounded font-mono">
+              NOT REQUIRED
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 leading-snug">
+            Current conditions do not meet the CIVICHEAT reassessment threshold.
+          </p>
+          <p className="text-[10px] text-gray-600 leading-snug">
+            The model is only invoked when a meaningful change is detected — no inference call
+            was made for this cycle.
+          </p>
+        </div>
+      )}
 
       {/* ── Change reasons ──────────────────────────────────────────────── */}
       {comparison.change_reasons.length > 0 && (
