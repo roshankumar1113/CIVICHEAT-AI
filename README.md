@@ -85,6 +85,10 @@ Government Dashboard (React command center)
 | Database | PostgreSQL/PostGIS (Phase 2+) |
 | Deployment | Vercel (frontend), Railway (backend) |
 
+## Deployment
+
+Detailed deployment instructions for Vercel, Render, Railway, and Docker are provided in **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
 ---
 
 ## Local Setup
