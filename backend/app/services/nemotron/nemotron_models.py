@@ -51,30 +51,34 @@ class ToolCall(BaseModel):
 
 
 class AssistantMessage(BaseModel):
-    role: Literal["assistant"]
+    role: Literal["assistant"] = "assistant"
     content: str | None = None
     tool_calls: list[ToolCall] | None = None
+    reasoning_content: str | None = None
 
 
 class Choice(BaseModel):
-    index: int
+    index: int = 0
     message: AssistantMessage
-    finish_reason: str
+    finish_reason: str | None = None
+    logprobs: Any = None
 
 
 class Usage(BaseModel):
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
 
 
 class ChatResponse(BaseModel):
-    id: str
-    object: str
-    created: int
-    model: str
-    choices: list[Choice]
-    usage: Usage
+    id: str | None = None
+    object: str | None = "chat.completion"
+    created: int | None = None
+    model: str | None = None
+    choices: list[Choice] = Field(default_factory=list)
+    usage: Usage | None = None
+    service_tier: str | None = None
+    system_fingerprint: str | None = None
 
 
 # ---------------------------------------------------------------------------
