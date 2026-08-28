@@ -5,7 +5,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     # Application
     app_name: str = "CIVICHEAT AI"
-    app_version: str = "0.1.0"
+    app_version: str = "0.1.1"
     app_env: str = "development"
     debug: bool = False
 
