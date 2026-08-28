@@ -1,0 +1,10 @@
+{
+  "name": "civicheat-ai-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "install:frontend": "npm --prefix frontend install",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "build:frontend": "npm --prefix frontend run build"
+  }
+}
