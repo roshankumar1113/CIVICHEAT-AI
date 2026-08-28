@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - FORTYGUARD_API_KEY=${FORTYGUARD_API_KEY:-}
+      - FORTYGUARD_BASE_URL=${FORTYGUARD_BASE_URL:-https://api.fortyguard.com}
+      - NEMOTRON_BASE_URL=${NEMOTRON_BASE_URL:-}
+      - NEMOTRON_API_KEY=${NEMOTRON_API_KEY:-}
+      - NEMOTRON_MODEL=${NEMOTRON_MODEL:-nvidia/nemotron-3-nano-30b-a3b}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
